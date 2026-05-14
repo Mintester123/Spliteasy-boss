@@ -1,5 +1,98 @@
 // Main app shell + navigation + theme + tweaks wiring
 
+// ── App State Management ─────────────────────────────────────────────────────
+const AppContext = createContext(null);
+function useApp() { return useContext(AppContext); }
+
+const STORAGE_KEY = 'spliteasy-v1';
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.groups && parsed.pickle) return parsed;
+    }
+  } catch(e) {}
+  return { groups: INITIAL_GROUPS, pickle: INITIAL_PICKLE, settlements: [] };
+}
+
+function appReducer(state, action) {
+  switch (action.type) {
+    case 'ADD_EXPENSE': {
+      const { groupId, expense } = action.payload;
+      return {
+        ...state,
+        groups: state.groups.map(g =>
+          g.id === groupId ? { ...g, expenses: [expense, ...g.expenses] } : g
+        ),
+      };
+    }
+    case 'DELETE_EXPENSE': {
+      const { groupId, expenseId } = action.payload;
+      return {
+        ...state,
+        groups: state.groups.map(g =>
+          g.id === groupId ? { ...g, expenses: g.expenses.filter(e => e.id !== expenseId) } : g
+        ),
+      };
+    }
+    case 'ADD_GROUP': {
+      return { ...state, groups: [...state.groups, action.payload] };
+    }
+    case 'DELETE_GROUP': {
+      return { ...state, groups: state.groups.filter(g => g.id !== action.payload.groupId) };
+    }
+    case 'MARK_SETTLED': {
+      const { fromId, toId, amount, groupId } = action.payload;
+      const settlement = {
+        id: 'st' + Date.now(), fromId, toId, amount, groupId,
+        date: new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }),
+      };
+      return { ...state, settlements: [...(state.settlements || []), settlement] };
+    }
+    case 'ADD_SESSION_EXPENSE': {
+      const { sessionId, expense } = action.payload;
+      return {
+        ...state,
+        pickle: {
+          ...state.pickle,
+          sessions: state.pickle.sessions.map(s =>
+            s.id === sessionId ? { ...s, expenses: [...s.expenses, expense] } : s
+          ),
+        },
+      };
+    }
+    case 'RSVP_SESSION': {
+      const { sessionId, userId, going } = action.payload;
+      return {
+        ...state,
+        pickle: {
+          ...state.pickle,
+          upcoming: state.pickle.upcoming.map(s => {
+            if (s.id !== sessionId) return s;
+            const newGoing = going
+              ? (s.going.includes(userId) ? s.going : [...s.going, userId])
+              : s.going.filter(id => id !== userId);
+            return { ...s, going: newGoing };
+          }),
+        },
+      };
+    }
+    case 'ADD_EXTERNAL': {
+      return {
+        ...state,
+        pickle: { ...state.pickle, external: [...state.pickle.external, action.payload] },
+      };
+    }
+    case 'RESET_DATA': {
+      localStorage.removeItem(STORAGE_KEY);
+      return { groups: INITIAL_GROUPS, pickle: INITIAL_PICKLE, settlements: [] };
+    }
+    default: return state;
+  }
+}
+
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "palette": "purple",
   "dark": false,
@@ -27,6 +120,15 @@ const FONTS = {
 
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  // ── App data state with localStorage persistence ───────────────────────
+  const [appState, dispatch] = useReducer(appReducer, null, loadState);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [appState]);
 
   // Nav state — each tab has its own stack
   const initStacks = () => ({
@@ -125,19 +227,21 @@ function App() {
   ];
 
   return (
-    <div style={{ ...themeVars, fontFamily: 'var(--vb-font-body)', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--surface-2)' }}>
-      <div className="screen-scroll" data-screen-label={`${activeTab} • ${current.name}`} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', paddingTop: 60 }}>
-        <ScreenTransition direction={navDir === 'tab' ? 'fade' : navDir} screenKey={`${activeTab}-${stack.length}-${animKey}`}>
-          {renderScreen()}
-        </ScreenTransition>
+    <AppContext.Provider value={{ state: appState, dispatch }}>
+      <div style={{ ...themeVars, fontFamily: 'var(--vb-font-body)', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--surface-2)' }}>
+        <div className="screen-scroll" data-screen-label={`${activeTab} • ${current.name}`} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', paddingTop: 60 }}>
+          <ScreenTransition direction={navDir === 'tab' ? 'fade' : navDir} screenKey={`${activeTab}-${stack.length}-${animKey}`}>
+            {renderScreen()}
+          </ScreenTransition>
+        </div>
+
+        {/* Bottom tab bar */}
+        <TabBar tabs={tabs} active={activeTab} onSwitch={switchTab} onAdd={() => push('add-expense')}/>
+
+        {/* Tweaks */}
+        <SpliteasyTweaks t={t} setTweak={setTweak}/>
       </div>
-
-      {/* Bottom tab bar */}
-      <TabBar tabs={tabs} active={activeTab} onSwitch={switchTab} onAdd={() => push('add-expense')}/>
-
-      {/* Tweaks */}
-      <SpliteasyTweaks t={t} setTweak={setTweak}/>
-    </div>
+    </AppContext.Provider>
   );
 }
 

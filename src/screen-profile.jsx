@@ -1,14 +1,15 @@
 // Profile / Cá nhân tab — personal stats + settings
 
 function ScreenProfile({ tweaks, push, setTweak }) {
-  const totals = useMemo(() => totalBalances(), []);
+  const { state } = useApp();
+  const totals = useMemo(() => totalBalances(state.groups), [state.groups]);
   const owed = Object.values(totals).filter(v => v > 0).reduce((a,b)=>a+b, 0);
   const owe = Math.abs(Object.values(totals).filter(v => v < 0).reduce((a,b)=>a+b, 0));
 
   // total spent across all groups, paid by me, plus my share where I didn't pay
   const stats = useMemo(() => {
     let paid = 0; let share = 0; let count = 0;
-    for (const g of GROUPS) {
+    for (const g of state.groups) {
       for (const e of g.expenses) {
         const per = Math.round(e.amount / e.participants.length);
         if (e.paidBy === ME) paid += e.amount;
@@ -16,11 +17,11 @@ function ScreenProfile({ tweaks, push, setTweak }) {
       }
     }
     return { paid, share, count };
-  }, []);
+  }, [state.groups]);
 
   const categorySpend = useMemo(() => {
     const acc = {};
-    for (const g of GROUPS) {
+    for (const g of state.groups) {
       for (const e of g.expenses) {
         if (!e.participants.includes(ME)) continue;
         const per = Math.round(e.amount / e.participants.length);
@@ -28,7 +29,7 @@ function ScreenProfile({ tweaks, push, setTweak }) {
       }
     }
     return Object.entries(acc).sort((a,b)=>b[1]-a[1]);
-  }, []);
+  }, [state.groups]);
   const maxCat = categorySpend.length > 0 ? categorySpend[0][1] : 1;
   const catLabels = { food: 'Ăn uống', drink: 'Đồ uống', travel: 'Đi lại', gift: 'Quà tặng' };
 
@@ -104,7 +105,7 @@ function ScreenProfile({ tweaks, push, setTweak }) {
           <SectionHeader title="Hay chia tiền cùng"/>
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto', padding: '4px 4px 8px', marginLeft: -4, marginRight: -4 }}>
             {MEMBERS.filter(m => !m.isMe).slice(0, 6).map(m => {
-              const count = GROUPS.reduce((acc, g) => acc + g.expenses.filter(e => e.participants.includes(m.id) && e.participants.includes(ME)).length, 0);
+              const count = state.groups.reduce((acc, g) => acc + g.expenses.filter(e => e.participants.includes(m.id) && e.participants.includes(ME)).length, 0);
               return (
                 <div key={m.id} style={{
                   flexShrink: 0, width: 110, padding: '14px 10px',
@@ -161,6 +162,7 @@ function StatCard({ icon, iconColor, iconBg, label, value }) {
 }
 
 function ScreenSettings({ pop }) {
+  const { dispatch } = useApp();
   return (
     <div style={{ paddingBottom: 32 }}>
       <NavHeader title="Cài đặt" onBack={pop}/>
@@ -171,7 +173,19 @@ function ScreenSettings({ pop }) {
           <ListRow left={<MenuIcon name="bell" bg="#FFF7E0" c="#A05C0C"/>} title="Nhắc qua Zalo" subtitle="Đang bật" right={<Icon name="chevron-right" size={18} color="var(--text-3)"/>} divider={false}/>
         </Card>
         <Card>
-          <ListRow left={<MenuIcon name="sparkle" bg="var(--brand-soft)" c="var(--brand-1)"/>} title="Phiên bản" subtitle="Spliteasy 1.0.0 (build 2026.05)" divider={false}/>
+          <ListRow
+            left={<MenuIcon name="trash" bg="var(--vb-danger-50)" c="var(--vb-danger-700)"/>}
+            title="Đặt lại dữ liệu"
+            subtitle="Xoá tất cả, khôi phục dữ liệu mẫu"
+            right={<Icon name="chevron-right" size={18} color="var(--vb-danger-700)"/>}
+            onClick={() => {
+              if (window.confirm('Xoá tất cả dữ liệu và khôi phục về mẫu ban đầu?')) {
+                dispatch({ type: 'RESET_DATA' });
+                pop();
+              }
+            }}
+          />
+          <ListRow left={<MenuIcon name="sparkle" bg="var(--brand-soft)" c="var(--brand-1)"/>} title="Phiên bản" subtitle="Spliteasy 3.0.0 (build 2026.05)" divider={false}/>
         </Card>
       </div>
     </div>

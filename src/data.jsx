@@ -43,7 +43,7 @@ const splitEqual = (amount, ids) => {
 };
 
 // Groups
-const GROUPS = [
+const INITIAL_GROUPS = [
   {
     id: 'g1',
     name: 'Ăn trưa team Eng',
@@ -123,9 +123,9 @@ function groupNet(g) {
 }
 
 // All-up balance per member
-function totalBalances() {
+function totalBalances(groups = INITIAL_GROUPS) {
   const totals = {};
-  for (const g of GROUPS) {
+  for (const g of groups) {
     const b = groupBalance(g);
     for (const id in b) {
       totals[id] = (totals[id] || 0) + b[id];
@@ -135,9 +135,9 @@ function totalBalances() {
 }
 
 // Recent activity feed (across groups)
-function recentActivity(limit = 8) {
+function recentActivity(groups = INITIAL_GROUPS, limit = 8) {
   const out = [];
-  for (const g of GROUPS) {
+  for (const g of groups) {
     for (const e of g.expenses) {
       out.push({ ...e, groupName: g.name, groupEmoji: g.emoji, groupColor: g.color, groupId: g.id });
     }
@@ -147,7 +147,7 @@ function recentActivity(limit = 8) {
 }
 
 // ── Pickleball ─────────────────────────────────────────────────────────────
-const PICKLE = {
+const INITIAL_PICKLE = {
   clubName: 'CLB Pickleball Spliteasy',
   monthlyCourtFee: 4_800_000,   // chia đều cho cố định
   guestFeePerSession: 50_000,
@@ -186,16 +186,16 @@ const PICKLE = {
 };
 
 // Compute member's monthly pickleball cost
-function pickleSummary() {
-  const fixed = PICKLE.fixedMembers;
-  const courtPerMember = Math.round(PICKLE.monthlyCourtFee / fixed.length);
+function pickleSummary(pickle = INITIAL_PICKLE) {
+  const fixed = pickle.fixedMembers;
+  const courtPerMember = Math.round(pickle.monthlyCourtFee / fixed.length);
   // Guest fees collected this month
-  const totalGuests = PICKLE.sessions.reduce((a, s) => a + s.guests.length, 0);
-  const guestRevenue = totalGuests * PICKLE.guestFeePerSession;
+  const totalGuests = pickle.sessions.reduce((a, s) => a + s.guests.length, 0);
+  const guestRevenue = totalGuests * pickle.guestFeePerSession;
   const guestCreditPer = Math.round(guestRevenue / fixed.length);
   // Per-member expense reimbursements from session expenses (paid by, split among attendees)
   const memberOwes = Object.fromEntries(fixed.map(id => [id, 0]));
-  for (const s of PICKLE.sessions) {
+  for (const s of pickle.sessions) {
     const splitAmong = s.attended;
     for (const ex of s.expenses) {
       const per = Math.round(ex.amount / splitAmong.length);
@@ -209,7 +209,10 @@ function pickleSummary() {
 }
 
 Object.assign(window, {
-  MEMBERS, M, ME, GROUPS, PICKLE,
+  MEMBERS, M, ME,
+  INITIAL_GROUPS, INITIAL_PICKLE,
+  // backward-compat aliases (read-only references to initial data)
+  GROUPS: INITIAL_GROUPS, PICKLE: INITIAL_PICKLE,
   fmtVND, fmtVNDFull, fmtDate,
   splitEqual, groupBalance, groupNet, totalBalances, recentActivity, pickleSummary,
 });

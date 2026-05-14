@@ -2,13 +2,14 @@
 // Has 3 layout variations exposed via Tweaks: 'overview' | 'feed' | 'compact'
 
 function ScreenHome({ tweaks, push, switchTab }) {
-  const totals = useMemo(() => totalBalances(), []);
+  const { state } = useApp();
+  const totals = useMemo(() => totalBalances(state.groups), [state.groups]);
   const youAreOwed = Object.values(totals).filter(v => v > 0).reduce((a,b) => a+b, 0);
   const youOwe = Object.values(totals).filter(v => v < 0).reduce((a,b) => a+b, 0);
   const net = youAreOwed + youOwe;
   const layout = tweaks.homeLayout || 'overview';
 
-  const activity = useMemo(() => recentActivity(20), []);
+  const activity = useMemo(() => recentActivity(state.groups, 20), [state.groups]);
 
   return (
     <div style={{ paddingBottom: 96 }}>
@@ -121,7 +122,8 @@ function SubBalance({ label, amount, positive = false }) {
 
 // ── OVERVIEW layout (default) — groups + ai nợ ai + recent ──────────────────
 function OverviewLayout({ push, switchTab, tweaks, activity }) {
-  const balances = useMemo(() => totalBalances(), []);
+  const { state } = useApp();
+  const balances = useMemo(() => totalBalances(state.groups), [state.groups]);
   const ranked = Object.entries(balances).filter(([id, v]) => v !== 0).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
 
   return (
@@ -159,7 +161,7 @@ function OverviewLayout({ push, switchTab, tweaks, activity }) {
       <div>
         <SectionHeader title="Nhóm của bạn" action="Xem tất cả →" onAction={() => switchTab('groups')}/>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {GROUPS.slice(0, 3).map(g => <GroupCard key={g.id} g={g} onClick={() => { switchTab('groups'); setTimeout(() => push('group-detail', { groupId: g.id }), 50); }} avatarStyle={tweaks.avatarStyle}/>)}
+          {state.groups.slice(0, 3).map(g => <GroupCard key={g.id} g={g} onClick={() => { switchTab('groups'); setTimeout(() => push('group-detail', { groupId: g.id }), 50); }} avatarStyle={tweaks.avatarStyle}/>)}
         </div>
       </div>
 
@@ -178,13 +180,14 @@ function OverviewLayout({ push, switchTab, tweaks, activity }) {
 
 // ── FEED layout — emphasize activity ──────────────────────────────────────
 function FeedLayout({ push, switchTab, tweaks, activity }) {
+  const { state } = useApp();
   return (
     <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Active groups strip */}
       <div>
         <SectionHeader title="Nhóm" action="Xem tất cả →" onAction={() => switchTab('groups')}/>
         <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4, marginLeft: -4, marginRight: -4, paddingLeft: 4, paddingRight: 4 }}>
-          {GROUPS.map(g => (
+          {state.groups.map(g => (
             <button key={g.id} onClick={() => { switchTab('groups'); setTimeout(() => push('group-detail', { groupId: g.id }), 50); }} style={{
               appearance: 'none', cursor: 'pointer', flexShrink: 0, textAlign: 'left',
               width: 152, padding: 12, background: 'var(--surface-1)', border: '1px solid var(--border-1)', borderRadius: 14,
@@ -215,7 +218,8 @@ function FeedLayout({ push, switchTab, tweaks, activity }) {
 
 // ── COMPACT layout — minimal, list-driven ──────────────────────────────────
 function CompactLayout({ push, switchTab, tweaks, activity }) {
-  const balances = useMemo(() => totalBalances(), []);
+  const { state } = useApp();
+  const balances = useMemo(() => totalBalances(state.groups), [state.groups]);
   const ranked = Object.entries(balances).filter(([id, v]) => v !== 0).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
 
   return (
@@ -241,7 +245,7 @@ function CompactLayout({ push, switchTab, tweaks, activity }) {
       <div>
         <SectionHeader title="Nhóm" action="Xem tất cả →" onAction={() => switchTab('groups')}/>
         <Card>
-          {GROUPS.map((g, i) => (
+          {state.groups.map((g, i) => (
             <ListRow
               key={g.id}
               left={<div style={{ width: 36, height: 36, borderRadius: 10, background: hexA(g.color, 0.12), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{g.emoji}</div>}
@@ -249,7 +253,7 @@ function CompactLayout({ push, switchTab, tweaks, activity }) {
               subtitle={`${g.members.length} thành viên • ${g.expenses.length} giao dịch`}
               right={<Money value={groupNet(g)} size={14} color={groupNet(g) >= 0 ? 'var(--vb-success-700)' : 'var(--vb-danger-700)'} compact/>}
               onClick={() => { switchTab('groups'); setTimeout(() => push('group-detail', { groupId: g.id }), 50); }}
-              divider={i < GROUPS.length - 1}
+              divider={i < state.groups.length - 1}
             />
           ))}
         </Card>

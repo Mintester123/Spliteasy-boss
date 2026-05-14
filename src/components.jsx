@@ -1,6 +1,6 @@
 // Shared UI primitives for Spliteasy
 
-const { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } = React;
+const { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect, useReducer, useContext, createContext } = React;
 
 // ── Icons ───────────────────────────────────────────────────────────────────
 function Icon({ name, size = 20, color = 'currentColor', stroke = 1.75 }) {

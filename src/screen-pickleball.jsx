@@ -2,8 +2,9 @@
 // Has 2 visual styles via Tweaks: 'sporty' (vibrant lime/orange) | 'consistent' (purple match)
 
 function ScreenPickleball({ tweaks, push }) {
+  const { state } = useApp();
   const [tab, setTab] = useState('overview'); // overview | sessions | members | external
-  const summary = useMemo(() => pickleSummary(), []);
+  const summary = useMemo(() => pickleSummary(state.pickle), [state.pickle]);
   const style = tweaks.pickleballStyle || 'sporty';
   const accent = style === 'sporty' ? '#7AC74F' : 'var(--brand-1)';
   const accentBg = style === 'sporty' ? 'rgba(122,199,79,0.12)' : 'var(--brand-soft)';
@@ -52,7 +53,7 @@ function ScreenPickleball({ tweaks, push }) {
             <div style={{ fontFamily: 'var(--vb-font-body)', fontWeight: 700, fontSize: 22, letterSpacing: '-0.01em' }}>
               Tháng 5 / 2026
             </div>
-            <div style={{ fontSize: 12, opacity: 0.78, marginTop: 2 }}>{PICKLE.sessions.length} buổi cố định • {PICKLE.fixedMembers.length} thành viên</div>
+            <div style={{ fontSize: 12, opacity: 0.78, marginTop: 2 }}>{state.pickle.sessions.length} buổi cố định • {state.pickle.fixedMembers.length} thành viên</div>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
               <PickleHeroStat label="Tiền sân/người" value={summary.courtPerMember}/>
@@ -110,8 +111,9 @@ function PickleHeroStat({ label, value, positive = false, accent }) {
 
 // ── Overview tab ────────────────────────────────────────────────────────────
 function PickleOverview({ push, tweaks, summary, accent, accentBg, style }) {
-  const totalCourt = PICKLE.monthlyCourtFee;
-  const guestCount = PICKLE.sessions.reduce((a,s)=>a+s.guests.length,0);
+  const { state, dispatch } = useApp();
+  const totalCourt = state.pickle.monthlyCourtFee;
+  const guestCount = state.pickle.sessions.reduce((a,s)=>a+s.guests.length,0);
 
   // Compute "what you contributed vs what you owe" for me
   const myCourt = summary.courtPerMember;
@@ -119,7 +121,7 @@ function PickleOverview({ push, tweaks, summary, accent, accentBg, style }) {
   const myExpenses = summary.memberOwes[ME] || 0;
   const myNet = -myCourt + myCredit + myExpenses;
 
-  const next = PICKLE.upcoming[0];
+  const next = state.pickle.upcoming[0];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* My monthly settlement */}
@@ -134,7 +136,7 @@ function PickleOverview({ push, tweaks, summary, accent, accentBg, style }) {
           </div>
         </div>
         <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <BreakdownRow label="Tiền thuê sân tháng 5" sub={`${PICKLE.fixedMembers.length} người chia đều`} value={-myCourt} icon="card"/>
+          <BreakdownRow label="Tiền thuê sân tháng 5" sub={`${state.pickle.fixedMembers.length} người chia đều`} value={-myCourt} icon="card"/>
           <BreakdownRow label={`Phí vé vãng lai (${guestCount} lượt)`} sub="Chia đều cho thành viên cố định" value={+myCredit} icon="users" positive accent={accent}/>
           <BreakdownRow label="Chi phí bóng / nước / ăn" sub="Đã trả - phần phải đóng" value={myExpenses} icon="ball" positive={myExpenses >= 0} accent={accent}/>
         </div>
@@ -162,10 +164,13 @@ function PickleOverview({ push, tweaks, summary, accent, accentBg, style }) {
                 <span style={{ fontSize: 12, color: 'var(--text-2)', fontWeight: 600 }}>{next.going.length} người tham gia</span>
               </div>
             </div>
-            <button style={{
+            <button onClick={() => dispatch({ type: 'RSVP_SESSION', payload: { sessionId: next.id, userId: ME, going: !next.going.includes(ME) } })} style={{
               appearance: 'none', cursor: 'pointer', height: 36, padding: '0 14px',
-              background: accent, color: style === 'sporty' ? '#0E1726' : '#fff', border: 0, borderRadius: 10, fontWeight: 700, fontSize: 13,
-            }}>Tham gia</button>
+              background: next.going.includes(ME) ? 'var(--surface-2)' : accent,
+              color: next.going.includes(ME) ? 'var(--text-1)' : (style === 'sporty' ? '#0E1726' : '#fff'),
+              border: next.going.includes(ME) ? '1px solid var(--border-1)' : 0,
+              borderRadius: 10, fontWeight: 700, fontSize: 13,
+            }}>{next.going.includes(ME) ? 'Huỷ tham gia' : 'Tham gia'}</button>
           </div>
         </Card>
       </div>
@@ -180,8 +185,8 @@ function PickleOverview({ push, tweaks, summary, accent, accentBg, style }) {
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)' }}>Quy định vé vãng lai</div>
           <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 4, lineHeight: 1.5 }}>
-            Người ngoài đánh cùng đóng <b style={{ color: 'var(--text-1)' }}>{fmtVNDFull(PICKLE.guestFeePerSession)}</b>/buổi.
-            Tổng phí thu được chia đều cho <b style={{ color: 'var(--text-1)' }}>{PICKLE.fixedMembers.length}</b> thành viên cố định để trừ vào tiền sân.
+            Người ngoài đánh cùng đóng <b style={{ color: 'var(--text-1)' }}>{fmtVNDFull(state.pickle.guestFeePerSession)}</b>/buổi.
+            Tổng phí thu được chia đều cho <b style={{ color: 'var(--text-1)' }}>{state.pickle.fixedMembers.length}</b> thành viên cố định để trừ vào tiền sân.
           </div>
         </div>
       </div>
@@ -213,12 +218,13 @@ function BreakdownRow({ label, sub, value, icon, positive = false, accent }) {
 
 // ── Sessions tab — list of all sessions this month ──────────────────────────
 function PickleSessions({ push, tweaks, accent, accentBg, style }) {
+  const { state, dispatch } = useApp();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
         <SectionHeader title="Sắp diễn ra"/>
         <Card>
-          {PICKLE.upcoming.map((s, i) => (
+          {state.pickle.upcoming.map((s, i) => (
             <div key={s.id} style={{
               display: 'flex', alignItems: 'center', gap: 12,
               padding: 14, borderBottom: i < PICKLE.upcoming.length - 1 ? '1px solid var(--border-1)' : 'none',
@@ -237,7 +243,13 @@ function PickleSessions({ push, tweaks, accent, accentBg, style }) {
                   <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 600 }}>{s.going.length} người</span>
                 </div>
               </div>
-              <Pill bg={accentBg} color={accent} size="xs">Sắp tới</Pill>
+              <button onClick={() => dispatch({ type: 'RSVP_SESSION', payload: { sessionId: s.id, userId: ME, going: !s.going.includes(ME) } })} style={{
+                appearance: 'none', cursor: 'pointer', height: 28, padding: '0 10px',
+                background: s.going.includes(ME) ? 'var(--surface-2)' : accentBg,
+                color: s.going.includes(ME) ? 'var(--text-2)' : accent,
+                border: '1px solid ' + (s.going.includes(ME) ? 'var(--border-1)' : accent),
+                borderRadius: 8, fontWeight: 700, fontSize: 11,
+              }}>{s.going.includes(ME) ? 'Huỷ' : 'Tham gia'}</button>
             </div>
           ))}
         </Card>
@@ -246,7 +258,7 @@ function PickleSessions({ push, tweaks, accent, accentBg, style }) {
       <div>
         <SectionHeader title="Đã diễn ra"/>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {PICKLE.sessions.map(s => (
+          {state.pickle.sessions.map(s => (
             <Card key={s.id} interactive onClick={() => push('session-detail', { sessionId: s.id })}>
               <div style={{ padding: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
@@ -288,7 +300,8 @@ function PickleSessions({ push, tweaks, accent, accentBg, style }) {
 
 // ── External tab — vé lẻ outside the club ───────────────────────────────────
 function PickleExternal({ push, tweaks, accent, accentBg, style }) {
-  const total = PICKLE.external.reduce((a,e)=>a+e.amount, 0);
+  const { state } = useApp();
+  const total = state.pickle.external.reduce((a,e)=>a+e.amount, 0);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{
@@ -309,7 +322,7 @@ function PickleExternal({ push, tweaks, accent, accentBg, style }) {
           <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Tổng tháng này</span>
           <Money value={total} size={18}/>
         </div>
-        {PICKLE.external.map((ex, i) => {
+        {state.pickle.external.map((ex, i) => {
           const per = Math.round(ex.amount / ex.participants.length);
           const inIt = ex.participants.includes(ME);
           const myDelta = ex.paidBy === ME ? ex.amount - per : (inIt ? -per : 0);
@@ -348,27 +361,28 @@ function PickleExternal({ push, tweaks, accent, accentBg, style }) {
 
 // ── Members tab ────────────────────────────────────────────────────────────
 function PickleMembers({ tweaks, summary, accent, accentBg, style }) {
+  const { state } = useApp();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <SectionHeader title={`Thành viên cố định (${PICKLE.fixedMembers.length})`} action="Thêm" onAction={() => {}}/>
+        <SectionHeader title={`Thành viên cố định (${state.pickle.fixedMembers.length})`} action="Thêm" onAction={() => {}}/>
         <Card>
-          {PICKLE.fixedMembers.map((id, i) => {
-            const attendedCount = PICKLE.sessions.filter(s => s.attended.includes(id)).length;
+          {state.pickle.fixedMembers.map((id, i) => {
+            const attendedCount = state.pickle.sessions.filter(s => s.attended.includes(id)).length;
             const myCourt = summary.courtPerMember;
             const myCredit = summary.guestCreditPer;
             const myExp = summary.memberOwes[id] || 0;
             const net = -myCourt + myCredit + myExp;
             return (
               <div key={id} style={{
-                padding: 14, borderBottom: i < PICKLE.fixedMembers.length - 1 ? '1px solid var(--border-1)' : 'none',
+                padding: 14, borderBottom: i < state.pickle.fixedMembers.length - 1 ? '1px solid var(--border-1)' : 'none',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <Avatar member={M[id]} size={40} style={tweaks.avatarStyle}/>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)' }}>{M[id].name}{M[id].isMe ? ' (bạn)' : ''}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 2, fontWeight: 500 }}>
-                      Đi {attendedCount}/{PICKLE.sessions.length} buổi
+                      Đi {attendedCount}/{state.pickle.sessions.length} buổi
                     </div>
                   </div>
                   <Money value={net} size={14} color={net >= 0 ? 'var(--vb-success-700)' : 'var(--vb-danger-700)'} compact/>
@@ -391,13 +405,13 @@ function PickleMembers({ tweaks, summary, accent, accentBg, style }) {
         <Card>
           {(() => {
             const guestMap = {};
-            for (const s of PICKLE.sessions) for (const g of s.guests) guestMap[g] = (guestMap[g] || 0) + 1;
+            for (const s of state.pickle.sessions) for (const g of s.guests) guestMap[g] = (guestMap[g] || 0) + 1;
             const entries = Object.entries(guestMap);
             return entries.map(([name, count], i) => (
               <ListRow key={name}
                 left={<div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--vb-warn-100)', color: '#A05C0C', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14 }}>{name.split(' ').map(p=>p[0]).join('').slice(-2)}</div>}
                 title={name}
-                subtitle={`${count} buổi • ${fmtVNDFull(count * PICKLE.guestFeePerSession)}`}
+                subtitle={`${count} buổi • ${fmtVNDFull(count * state.pickle.guestFeePerSession)}`}
                 right={<Pill bg="var(--vb-warn-100)" color="#A05C0C" size="xs">Vãng lai</Pill>}
                 divider={i < entries.length - 1}
               />
@@ -411,7 +425,8 @@ function PickleMembers({ tweaks, summary, accent, accentBg, style }) {
 
 // ── Pickleball session detail ───────────────────────────────────────────────
 function ScreenSessionDetail({ params, pop, tweaks }) {
-  const s = PICKLE.sessions.find(x => x.id === params.sessionId);
+  const { state } = useApp();
+  const s = state.pickle.sessions.find(x => x.id === params.sessionId);
   const total = s.expenses.reduce((a,e)=>a+e.amount, 0);
   const per = s.attended.length > 0 ? Math.round(total / s.attended.length) : 0;
   return (
@@ -457,7 +472,7 @@ function ScreenSessionDetail({ params, pop, tweaks }) {
               <ListRow key={name}
                 left={<div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--vb-warn-100)', color: '#A05C0C', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14 }}>{name.split(' ').map(p=>p[0]).join('').slice(-2)}</div>}
                 title={name}
-                right={<Money value={PICKLE.guestFeePerSession} size={13}/>}
+                right={<Money value={state.pickle.guestFeePerSession} size={13}/>}
                 divider={i < s.guests.length - 1}
               />
             ))}
@@ -469,14 +484,35 @@ function ScreenSessionDetail({ params, pop, tweaks }) {
 }
 
 function ScreenAddSessionExpense({ pop, tweaks }) {
+  const { state, dispatch } = useApp();
   const [kind, setKind] = useState('ball');
   const [label, setLabel] = useState('');
   const [amount, setAmount] = useState('');
+  const [sessionId, setSessionId] = useState(state.pickle.sessions[0]?.id || '');
   const num = Number((amount || '0').replace(/[^0-9]/g, ''));
+
+  const handleSave = () => {
+    if (num <= 0) return;
+    dispatch({
+      type: 'ADD_SESSION_EXPENSE',
+      payload: {
+        sessionId,
+        expense: {
+          id: 'sx' + Date.now(),
+          kind,
+          label: label.trim() || kind,
+          amount: num,
+          paidBy: ME,
+        }
+      }
+    });
+    pop();
+  };
+
   return (
     <div style={{ paddingBottom: 32 }}>
       <NavHeader title="Thêm chi phí" subtitle="Buổi đánh Pickleball" onBack={pop} right={
-        <button onClick={pop} style={{
+        <button onClick={handleSave} style={{
           appearance: 'none', height: 32, padding: '0 12px', cursor: 'pointer',
           background: num > 0 ? 'var(--brand-1)' : 'var(--surface-2)',
           color: num > 0 ? '#fff' : 'var(--text-3)',
@@ -523,8 +559,8 @@ function ScreenAddSessionExpense({ pop, tweaks }) {
         </FormRow>
 
         <FormRow label="Buổi đánh" icon="calendar">
-          <select style={inputStyle()}>
-            {PICKLE.sessions.map(s => <option key={s.id}>{s.date} • {s.time} • {s.court}</option>)}
+          <select value={sessionId} onChange={(e) => setSessionId(e.target.value)} style={inputStyle()}>
+            {state.pickle.sessions.map(s => <option key={s.id} value={s.id}>{s.date} • {s.time} • {s.court}</option>)}
           </select>
         </FormRow>
       </div>
